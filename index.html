@@ -1,0 +1,1175 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Skye</title>
+<link href="https://api.fontshare.com/v2/css?f[]=satoshi@400,500,700,900&display=swap" rel="stylesheet">
+<link href="https://api.fontshare.com/v2/css?f[]=recoleta@400,500,600,700&display=swap" rel="stylesheet">
+<style>
+:root {
+  --surface-fog: #EDF1F5;
+  --surface-warm-fog: #F0EDE8;
+  --surface-night: #1A2035;
+  --surface-rain: #2A3545;
+  --accent: #4A90D9;
+  --accent-hover: #3A7BC8;
+  --accent-light: rgba(74, 144, 217, 0.12);
+  --text-primary: #1A2035;
+  --text-secondary: #5A6270;
+  --text-muted: #8A909A;
+  --text-on-dark: #EDF1F5;
+  --text-on-dark-secondary: #A0AAB4;
+  --text-on-dark-muted: #6A7480;
+  --card-bg: rgba(255, 255, 255, 0.72);
+  --card-border: rgba(0, 0, 0, 0.06);
+  --card-shadow: 0 2px 8px rgba(0, 0, 0, 0.04), 0 0 1px rgba(0, 0, 0, 0.08);
+  --input-bg: rgba(255, 255, 255, 0.9);
+  --input-border: rgba(0, 0, 0, 0.08);
+  --scrollbar-thumb: rgba(0, 0, 0, 0.15);
+  --radius-component: 8px;
+  --radius-card: 12px;
+  --radius-input: 4px;
+  --spacing-unit: 4px;
+  --font-body: 'Satoshi', sans-serif;
+  --font-accent: 'Recoleta', serif;
+}
+
+body.condition-clear-day {
+  --surface-base: var(--surface-warm-fog);
+  --text-base: var(--text-primary);
+  --text-secondary-base: var(--text-secondary);
+  --text-muted-base: var(--text-muted);
+}
+body.condition-clear-night, body.condition-partly-cloudy-night {
+  --surface-base: var(--surface-night);
+  --text-base: var(--text-on-dark);
+  --text-secondary-base: var(--text-on-dark-secondary);
+  --text-muted-base: var(--text-on-dark-muted);
+  --card-bg: rgba(255, 255, 255, 0.06);
+  --card-border: rgba(255, 255, 255, 0.08);
+  --card-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+  --input-bg: rgba(255, 255, 255, 0.08);
+  --input-border: rgba(255, 255, 255, 0.1);
+  --scrollbar-thumb: rgba(255, 255, 255, 0.2);
+}
+body.condition-rain, body.condition-drizzle, body.condition-thunderstorm {
+  --surface-base: var(--surface-rain);
+  --text-base: var(--text-on-dark);
+  --text-secondary-base: var(--text-on-dark-secondary);
+  --text-muted-base: var(--text-on-dark-muted);
+  --card-bg: rgba(255, 255, 255, 0.06);
+  --card-border: rgba(255, 255, 255, 0.08);
+  --card-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+  --input-bg: rgba(255, 255, 255, 0.08);
+  --input-border: rgba(255, 255, 255, 0.1);
+  --scrollbar-thumb: rgba(255, 255, 255, 0.2);
+}
+body.condition-overcast, body.condition-fog, body.condition-snow {
+  --surface-base: var(--surface-fog);
+  --text-base: var(--text-primary);
+  --text-secondary-base: var(--text-secondary);
+  --text-muted-base: var(--text-muted);
+}
+body {
+  margin: 0;
+  padding: 0;
+  font-family: var(--font-body);
+  background-color: var(--surface-base, var(--surface-fog));
+  color: var(--text-base, var(--text-primary));
+  transition: background-color 0.6s ease, color 0.6s ease;
+  min-height: 100vh;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  overflow-x: hidden;
+}
+
+/* Noise texture overlay */
+body::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 9999;
+  opacity: 0.04;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+  background-repeat: repeat;
+  background-size: 200px 200px;
+}
+
+.app-container {
+  max-width: 420px;
+  margin: 0 auto;
+  min-height: 100vh;
+  position: relative;
+}
+
+/* Pull to refresh */
+.ptr-indicator {
+  position: fixed;
+  top: 0;
+  left: 50%;
+  transform: translateX(-50%) translateY(-48px);
+  width: 40px;
+  height: 40px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: transform 0.2s ease;
+  z-index: 100;
+}
+.ptr-indicator.visible {
+  transform: translateX(-50%) translateY(16px);
+}
+.ptr-spinner {
+  width: 20px;
+  height: 20px;
+  border: 2px solid var(--accent);
+  border-top-color: transparent;
+  border-radius: 50%;
+  animation: ptr-spin 0.8s linear infinite;
+}
+@keyframes ptr-spin {
+  to { transform: rotate(360deg); }
+}
+
+/* Current conditions panel */
+.current-panel {
+  padding: 24px 20px 16px;
+  min-height: 40vh;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.current-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.current-location {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: 1;
+  min-width: 0;
+}
+.current-city {
+  font-size: 20px;
+  font-weight: 500;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.current-country {
+  font-size: 14px;
+  color: var(--text-secondary-base, var(--text-secondary));
+  white-space: nowrap;
+}
+.current-actions {
+  display: flex;
+  gap: 4px;
+}
+.icon-btn {
+  background: none;
+  border: none;
+  color: var(--text-secondary-base, var(--text-secondary));
+  cursor: pointer;
+  padding: 8px;
+  border-radius: var(--radius-component);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background 0.15s, color 0.15s;
+}
+.icon-btn:hover {
+  background: var(--accent-light);
+  color: var(--accent);
+}
+.icon-btn:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+.icon-btn svg {
+  width: 20px;
+  height: 20px;
+}
+
+.current-temp {
+  font-size: 64px;
+  font-weight: 900;
+  line-height: 1;
+  margin: 4px 0;
+  letter-spacing: -2px;
+}
+.current-condition {
+  font-family: var(--font-accent);
+  font-size: 24px;
+  font-weight: 500;
+  margin: 0;
+  line-height: 1.2;
+}
+.current-details {
+  display: flex;
+  gap: 16px;
+  margin-top: 8px;
+}
+.current-detail {
+  font-size: 14px;
+  color: var(--text-muted-base, var(--text-muted));
+}
+.current-icon {
+  position: absolute;
+  top: 20px;
+  right: 20px;
+  width: 80px;
+  height: 80px;
+}
+
+/* Search */
+.search-panel {
+  padding: 16px 20px;
+}
+.search-wrapper {
+  position: relative;
+}
+.search-input {
+  width: 100%;
+  padding: 12px 16px 12px 40px;
+  font-family: var(--font-body);
+  font-size: 16px;
+  background: var(--input-bg);
+  border: 1px solid var(--input-border);
+  border-radius: var(--radius-input);
+  color: var(--text-base, var(--text-primary));
+  outline: none;
+  transition: border-color 0.15s, box-shadow 0.15s;
+  box-sizing: border-box;
+}
+.search-input::placeholder {
+  color: var(--text-muted-base, var(--text-muted));
+}
+.search-input:focus {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px rgba(74, 144, 217, 0.15);
+}
+.search-icon {
+  position: absolute;
+  left: 12px;
+  top: 50%;
+  transform: translateY(-50%);
+  color: var(--text-muted-base, var(--text-muted));
+  pointer-events: none;
+}
+.search-icon svg {
+  width: 18px;
+  height: 18px;
+}
+.search-clear {
+  position: absolute;
+  right: 8px;
+  top: 50%;
+  transform: translateY(-50%);
+  background: none;
+  border: none;
+  color: var(--text-muted-base, var(--text-muted));
+  cursor: pointer;
+  padding: 4px;
+  border-radius: var(--radius-input);
+  display: none;
+}
+.search-clear.visible {
+  display: flex;
+}
+.search-clear svg {
+  width: 16px;
+  height: 16px;
+}
+.search-suggestions {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0;
+  right: 0;
+  background: var(--input-bg);
+  border: 1px solid var(--input-border);
+  border-radius: var(--radius-component);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.1);
+  z-index: 50;
+  display: none;
+  max-height: 240px;
+  overflow-y: auto;
+}
+.search-suggestions.open {
+  display: block;
+}
+.suggestion-item {
+  padding: 12px 16px;
+  font-size: 14px;
+  cursor: pointer;
+  transition: background 0.1s;
+  border-bottom: 1px solid var(--card-border);
+}
+.suggestion-item:last-child {
+  border-bottom: none;
+}
+.suggestion-item:hover, .suggestion-item.focused {
+  background: var(--accent-light);
+}
+.suggestion-name {
+  font-weight: 500;
+  color: var(--text-base, var(--text-primary));
+}
+.suggestion-meta {
+  font-size: 12px;
+  color: var(--text-muted-base, var(--text-muted));
+  margin-top: 2px;
+}
+
+/* Error / Empty states */
+.state-message {
+  padding: 80px 20px;
+  text-align: center;
+  font-size: 16px;
+  color: var(--text-secondary-base, var(--text-secondary));
+}
+
+/* Hourly strip */
+.hourly-strip-wrapper {
+  padding: 0 0 8px;
+}
+.hourly-strip {
+  display: flex;
+  gap: 8px;
+  overflow-x: auto;
+  padding: 8px 20px 12px;
+  scroll-snap-type: x proximity;
+  scrollbar-width: thin;
+  scrollbar-color: var(--scrollbar-thumb) transparent;
+}
+.hourly-strip::-webkit-scrollbar {
+  height: 4px;
+}
+.hourly-strip::-webkit-scrollbar-track {
+  background: transparent;
+}
+.hourly-strip::-webkit-scrollbar-thumb {
+  background: var(--scrollbar-thumb);
+  border-radius: 2px;
+}
+.hourly-item {
+  flex: 0 0 64px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  padding: 12px 8px;
+  border-radius: var(--radius-component);
+  background: var(--card-bg);
+  border: 1px solid var(--card-border);
+  box-shadow: var(--card-shadow);
+  scroll-snap-align: start;
+  transition: border-color 0.15s;
+}
+.hourly-item.current {
+  border-color: var(--accent);
+}
+.hourly-time {
+  font-size: 12px;
+  color: var(--text-muted-base, var(--text-muted));
+  font-weight: 500;
+}
+.hourly-icon {
+  width: 28px;
+  height: 28px;
+}
+.hourly-temp {
+  font-size: 14px;
+  font-weight: 700;
+}
+
+/* 7-day forecast */
+.forecast-section {
+  padding: 8px 20px 32px;
+}
+.forecast-title {
+  font-size: 14px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  color: var(--text-muted-base, var(--text-muted));
+  margin: 0 0 12px;
+}
+.forecast-list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.forecast-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px;
+  border-radius: var(--radius-component);
+  background: var(--card-bg);
+  border: 1px solid var(--card-border);
+  box-shadow: var(--card-shadow);
+}
+.forecast-day {
+  font-size: 14px;
+  font-weight: 500;
+  width: 48px;
+  flex-shrink: 0;
+}
+.forecast-icon {
+  width: 28px;
+  height: 28px;
+  flex-shrink: 0;
+}
+.forecast-precip {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+.precip-bar-track {
+  flex: 1;
+  height: 4px;
+  background: var(--card-border);
+  border-radius: 2px;
+  overflow: hidden;
+  min-width: 40px;
+}
+.precip-bar-fill {
+  height: 100%;
+  background: var(--accent);
+  border-radius: 2px;
+  transition: width 0.4s ease;
+}
+.precip-pct {
+  font-size: 12px;
+  color: var(--text-muted-base, var(--text-muted));
+  width: 28px;
+  text-align: right;
+  flex-shrink: 0;
+}
+.forecast-temps {
+  display: flex;
+  gap: 8px;
+  flex-shrink: 0;
+}
+.forecast-high {
+  font-size: 14px;
+  font-weight: 700;
+}
+.forecast-low {
+  font-size: 14px;
+  color: var(--text-muted-base, var(--text-muted));
+}
+
+/* Unit toggle */
+.unit-toggle {
+  display: inline-flex;
+  border-radius: var(--radius-component);
+  overflow: hidden;
+  border: 1px solid var(--card-border);
+}
+.unit-btn {
+  padding: 6px 12px;
+  font-family: var(--font-body);
+  font-size: 13px;
+  font-weight: 700;
+  background: transparent;
+  border: none;
+  color: var(--text-muted-base, var(--text-muted));
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+}
+.unit-btn.active {
+  background: var(--accent);
+  color: #fff;
+}
+.unit-btn:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: -2px;
+}
+
+/* Loading spinner */
+.loading-overlay {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 200;
+  background: var(--surface-base, var(--surface-fog));
+  transition: opacity 0.3s;
+}
+.loading-overlay.hidden {
+  opacity: 0;
+  pointer-events: none;
+}
+.loading-spinner {
+  width: 32px;
+  height: 32px;
+  border: 3px solid var(--card-border);
+  border-top-color: var(--accent);
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+/* SVG icon animations */
+@keyframes sun-rotate {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+@keyframes sun-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.7; }
+}
+@keyframes cloud-drift {
+  0%, 100% { transform: translateX(0); }
+  50% { transform: translateX(4px); }
+}
+@keyframes rain-fall {
+  0% { transform: translateY(-4px); opacity: 0; }
+  30% { opacity: 1; }
+  100% { transform: translateY(6px); opacity: 0; }
+}
+@keyframes snow-fall {
+  0% { transform: translateY(-3px) rotate(0deg); opacity: 0; }
+  30% { opacity: 1; }
+  100% { transform: translateY(5px) rotate(180deg); opacity: 0; }
+}
+@keyframes lightning-flash {
+  0%, 100% { opacity: 0; }
+  8% { opacity: 1; }
+  12% { opacity: 0; }
+  16% { opacity: 0.8; }
+  20% { opacity: 0; }
+}
+@keyframes fog-drift {
+  0%, 100% { transform: translateX(0); opacity: 0.6; }
+  50% { transform: translateX(3px); opacity: 1; }
+}
+
+.weather-icon svg {
+  width: 100%;
+  height: 100%;
+}
+
+/* Scrollbar global */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--scrollbar-thumb) transparent;
+}
+
+@media (min-width: 421px) {
+  .app-container {
+    border-left: 1px solid var(--card-border);
+    border-right: 1px solid var(--card-border);
+  }
+}
+</style>
+</head>
+<body class="condition-clear-day">
+
+<div class="loading-overlay" id="loadingOverlay">
+  <div class="loading-spinner"></div>
+</div>
+
+<div class="ptr-indicator" id="ptrIndicator">
+  <div class="ptr-spinner"></div>
+</div>
+
+<div class="app-container" id="app">
+  <div class="state-message" id="stateMessage" style="display:none;"></div>
+</div>
+
+<script>
+(function() {
+  'use strict';
+
+  /* ─── State ─── */
+  let state = {
+    unit: localStorage.getItem('skye-unit') || 'C',
+    lat: null,
+    lon: null,
+    city: '',
+    country: '',
+    current: null,
+    hourly: [],
+    daily: [],
+    isNight: false,
+    loading: true
+  };
+
+  let debounceTimer = null;
+  let focusIndex = -1;
+
+  /* ─── DOM refs ─── */
+  const $ = (sel, root) => (root || document).querySelector(sel);
+  const $$ = (sel, root) => (root || document).querySelectorAll(sel);
+  const app = $('#app');
+  const loading = $('#loadingOverlay');
+  const ptr = $('#ptrIndicator');
+  const stateMsg = $('#stateMessage');
+
+  /* ─── Helpers ─── */
+  function toF(c) { return Math.round(c * 9 / 5 + 32); }
+  function fmtTemp(c) {
+    if (c == null) return '--';
+    const v = state.unit === 'F' ? toF(c) : Math.round(c);
+    return v + '\u00B0';
+  }
+  function isNightTime(hour) { return hour < 6 || hour >= 20; }
+
+  function getWeatherCodeInfo(code, isNight) {
+    const map = {
+      0: { label: 'Clear', condition: isNight ? 'clear-night' : 'clear-day', icon: 'clear' },
+      1: { label: 'Clear', condition: isNight ? 'clear-night' : 'clear-day', icon: 'clear' },
+      2: { label: 'Partly Cloudy', condition: isNight ? 'partly-cloudy-night' : 'partly-cloudy', icon: 'partly-cloudy' },
+      3: { label: 'Overcast', condition: 'overcast', icon: 'overcast' },
+      45: { label: 'Fog', condition: 'fog', icon: 'fog' },
+      48: { label: 'Fog', condition: 'fog', icon: 'fog' },
+      51: { label: 'Drizzle', condition: 'drizzle', icon: 'rain' },
+      53: { label: 'Drizzle', condition: 'drizzle', icon: 'rain' },
+      55: { label: 'Drizzle', condition: 'drizzle', icon: 'rain' },
+      56: { label: 'Drizzle', condition: 'drizzle', icon: 'rain' },
+      57: { label: 'Drizzle', condition: 'drizzle', icon: 'rain' },
+      61: { label: 'Rain', condition: 'rain', icon: 'rain' },
+      63: { label: 'Rain', condition: 'rain', icon: 'rain' },
+      65: { label: 'Rain', condition: 'rain', icon: 'rain' },
+      66: { label: 'Rain', condition: 'rain', icon: 'rain' },
+      67: { label: 'Rain', condition: 'rain', icon: 'rain' },
+      71: { label: 'Snow', condition: 'snow', icon: 'snow' },
+      73: { label: 'Snow', condition: 'snow', icon: 'snow' },
+      75: { label: 'Snow', condition: 'snow', icon: 'snow' },
+      77: { label: 'Snow', condition: 'snow', icon: 'snow' },
+      80: { label: 'Rain', condition: 'rain', icon: 'rain' },
+      81: { label: 'Rain', condition: 'rain', icon: 'rain' },
+      82: { label: 'Rain', condition: 'rain', icon: 'rain' },
+      85: { label: 'Snow', condition: 'snow', icon: 'snow' },
+      86: { label: 'Snow', condition: 'snow', icon: 'snow' },
+      95: { label: 'Thunderstorm', condition: 'thunderstorm', icon: 'thunderstorm' },
+      96: { label: 'Thunderstorm', condition: 'thunderstorm', icon: 'thunderstorm' },
+      99: { label: 'Thunderstorm', condition: 'thunderstorm', icon: 'thunderstorm' }
+    };
+    return map[code] || { label: 'Cloudy', condition: 'overcast', icon: 'overcast' };
+  }
+
+  /* ─── SVG Weather Icons ─── */
+  function weatherIconSVG(type, size) {
+    const s = size || 28;
+    const icons = {
+      'clear': `<svg width="${s}" height="${s}" viewBox="0 0 64 64" fill="none">
+        <g style="animation: sun-rotate 20s linear infinite; transform-origin: 32px 32px;">
+          <circle cx="32" cy="32" r="12" fill="#F5A623"/>
+          <g stroke="#F5A623" stroke-width="2.5" stroke-linecap="round">
+            <line x1="32" y1="6" x2="32" y2="14"/>
+            <line x1="32" y1="50" x2="32" y2="58"/>
+            <line x1="6" y1="32" x2="14" y2="32"/>
+            <line x1="50" y1="32" x2="58" y2="32"/>
+            <line x1="13.6" y1="13.6" x2="19.3" y2="19.3"/>
+            <line x1="44.7" y1="44.7" x2="50.4" y2="50.4"/>
+            <line x1="50.4" y1="13.6" x2="44.7" y2="19.3"/>
+            <line x1="19.3" y1="44.7" x2="13.6" y2="50.4"/>
+          </g>
+        </g>
+      </svg>`,
+      'partly-cloudy': `<svg width="${s}" height="${s}" viewBox="0 0 64 64" fill="none">
+        <g style="animation: sun-rotate 20s linear infinite; transform-origin: 40px 20px;">
+          <circle cx="40" cy="20" r="10" fill="#F5A623"/>
+          <g stroke="#F5A623" stroke-width="2" stroke-linecap="round">
+            <line x1="40" y1="4" x2="40" y2="8"/>
+            <line x1="52" y1="8" x2="49.2" y2="10.8"/>
+            <line x1="56" y1="20" x2="52" y2="20"/>
+            <line x1="52" y1="32" x2="49.2" y2="29.2"/>
+            <line x1="28" y1="8" x2="30.8" y2="10.8"/>
+          </g>
+        </g>
+        <g style="animation: cloud-drift 4s ease-in-out infinite;">
+          <ellipse cx="28" cy="38" rx="16" ry="10" fill="#B0BEC5"/>
+          <ellipse cx="20" cy="36" rx="10" ry="8" fill="#CFD8DC"/>
+          <ellipse cx="36" cy="36" rx="10" ry="8" fill="#CFD8DC"/>
+        </g>
+      </svg>`,
+      'overcast': `<svg width="${s}" height="${s}" viewBox="0 0 64 64" fill="none">
+        <g style="animation: cloud-drift 5s ease-in-out infinite;">
+          <ellipse cx="32" cy="28" rx="18" ry="10" fill="#90A4AE"/>
+          <ellipse cx="22" cy="26" rx="12" ry="9" fill="#B0BEC5"/>
+          <ellipse cx="42" cy="26" rx="12" ry="9" fill="#B0BEC5"/>
+        </g>
+        <g style="animation: cloud-drift 6s ease-in-out infinite; animation-delay: -1s;">
+          <ellipse cx="32" cy="40" rx="16" ry="9" fill="#78909C"/>
+          <ellipse cx="22" cy="38" rx="10" ry="8" fill="#90A4AE"/>
+          <ellipse cx="42" cy="38" rx="10" ry="8" fill="#90A4AE"/>
+        </g>
+      </svg>`,
+      'rain': `<svg width="${s}" height="${s}" viewBox="0 0 64 64" fill="none">
+        <g style="animation: cloud-drift 5s ease-in-out infinite;">
+          <ellipse cx="32" cy="24" rx="16" ry="10" fill="#78909C"/>
+          <ellipse cx="22" cy="22" rx="10" ry="8" fill="#90A4AE"/>
+          <ellipse cx="42" cy="22" rx="10" ry="8" fill="#90A4AE"/>
+        </g>
+        <g stroke="#4A90D9" stroke-width="2" stroke-linecap="round">
+          <line x1="22" y1="36" x2="20" y2="42" style="animation: rain-fall 1s linear infinite; animation-delay: 0s;"/>
+          <line x1="32" y1="36" x2="30" y2="42" style="animation: rain-fall 1s linear infinite; animation-delay: 0.3s;"/>
+          <line x1="42" y1="36" x2="40" y2="42" style="animation: rain-fall 1s linear infinite; animation-delay: 0.6s;"/>
+          <line x1="27" y1="40" x2="25" y2="46" style="animation: rain-fall 1s linear infinite; animation-delay: 0.15s;"/>
+          <line x1="37" y1="40" x2="35" y2="46" style="animation: rain-fall 1s linear infinite; animation-delay: 0.45s;"/>
+        </g>
+      </svg>`,
+      'thunderstorm': `<svg width="${s}" height="${s}" viewBox="0 0 64 64" fill="none">
+        <g style="animation: cloud-drift 5s ease-in-out infinite;">
+          <ellipse cx="32" cy="22" rx="16" ry="10" fill="#546E7A"/>
+          <ellipse cx="22" cy="20" rx="10" ry="8" fill="#78909C"/>
+          <ellipse cx="42" cy="20" rx="10" ry="8" fill="#78909C"/>
+        </g>
+        <polygon points="30,30 26,40 31,40 28,52 38,36 33,36 36,30" fill="#F5A623" style="animation: lightning-flash 3s linear infinite;"/>
+        <g stroke="#4A90D9" stroke-width="2" stroke-linecap="round">
+          <line x1="20" y1="34" x2="18" y2="40" style="animation: rain-fall 1s linear infinite; animation-delay: 0.2s;"/>
+          <line x1="44" y1="34" x2="42" y2="40" style="animation: rain-fall 1s linear infinite; animation-delay: 0.5s;"/>
+          <line x1="48" y1="34" x2="46" y2="40" style="animation: rain-fall 1s linear infinite; animation-delay: 0.8s;"/>
+        </g>
+      </svg>`,
+      'snow': `<svg width="${s}" height="${s}" viewBox="0 0 64 64" fill="none">
+        <g style="animation: cloud-drift 5s ease-in-out infinite;">
+          <ellipse cx="32" cy="24" rx="16" ry="10" fill="#90A4AE"/>
+          <ellipse cx="22" cy="22" rx="10" ry="8" fill="#B0BEC5"/>
+          <ellipse cx="42" cy="22" rx="10" ry="8" fill="#B0BEC5"/>
+        </g>
+        <g fill="#E3F2FD">
+          <circle cx="22" cy="38" r="2" style="animation: snow-fall 2s linear infinite; animation-delay: 0s;"/>
+          <circle cx="32" cy="38" r="2" style="animation: snow-fall 2s linear infinite; animation-delay: 0.5s;"/>
+          <circle cx="42" cy="38" r="2" style="animation: snow-fall 2s linear infinite; animation-delay: 1s;"/>
+          <circle cx="27" cy="42" r="1.5" style="animation: snow-fall 2s linear infinite; animation-delay: 0.3s;"/>
+          <circle cx="37" cy="42" r="1.5" style="animation: snow-fall 2s linear infinite; animation-delay: 0.8s;"/>
+        </g>
+      </svg>`,
+      'fog': `<svg width="${s}" height="${s}" viewBox="0 0 64 64" fill="none">
+        <g stroke="#90A4AE" stroke-width="3" stroke-linecap="round" opacity="0.7">
+          <line x1="12" y1="24" x2="52" y2="24" style="animation: fog-drift 4s ease-in-out infinite; animation-delay: 0s;"/>
+          <line x1="8" y1="32" x2="56" y2="32" style="animation: fog-drift 4s ease-in-out infinite; animation-delay: 0.5s;"/>
+          <line x1="14" y1="40" x2="50" y2="40" style="animation: fog-drift 4s ease-in-out infinite; animation-delay: 1s;"/>
+          <line x1="10" y1="48" x2="54" y2="48" style="animation: fog-drift 4s ease-in-out infinite; animation-delay: 1.5s;"/>
+        </g>
+      </svg>`
+    };
+    return icons[type] || icons['overcast'];
+  }
+
+  /* ─── Render ─── */
+  function render() {
+    if (!state.current) return;
+
+    const info = getWeatherCodeInfo(state.current.weather_code, state.isNight);
+    const bodyClass = 'condition-' + info.condition;
+
+    // Apply body condition class
+    document.body.className = bodyClass;
+
+    const h = state.hourly;
+    const d = state.daily;
+
+    let html = '';
+
+    // Search panel (always shown for search access)
+    html += `<div class="search-panel">
+      <div class="search-wrapper">
+        <div class="search-icon">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+            <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
+          </svg>
+        </div>
+        <input type="text" class="search-input" id="searchInput" placeholder="Search city..." autocomplete="off" />
+        <button class="search-clear" id="searchClear" aria-label="Clear search">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+            <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+          </svg>
+        </button>
+        <div class="search-suggestions" id="suggestions"></div>
+      </div>
+    </div>`;
+
+    // Current conditions
+    html += `<div class="current-panel" style="position:relative;">
+      <div class="current-icon" style="position:absolute;top:20px;right:20px;">
+        <div class="weather-icon">${weatherIconSVG(info.icon, 80)}</div>
+      </div>
+      <div class="current-header">
+        <div class="current-location">
+          <span class="current-city">${esc(state.city)}</span>
+          <span class="current-country">${esc(state.country)}</span>
+        </div>
+        <div class="current-actions">
+          <div class="unit-toggle">
+            <button class="unit-btn ${state.unit === 'C' ? 'active' : ''}" data-unit="C">C&deg;</button>
+            <button class="unit-btn ${state.unit === 'F' ? 'active' : ''}" data-unit="F">F&deg;</button>
+          </div>
+        </div>
+      </div>
+      <div class="current-temp">${fmtTemp(state.current.temperature_2m)}</div>
+      <h2 class="current-condition">${esc(info.label)}</h2>
+      <div class="current-details">
+        <span class="current-detail">Feels like ${fmtTemp(state.current.apparent_temperature)}</span>
+        <span class="current-detail">Humidity ${state.current.relative_humidity_2m}%</span>
+        <span class="current-detail">Wind ${Math.round(state.current.wind_speed_10m)} km/h</span>
+      </div>
+    </div>`;
+
+    // Hourly strip
+    if (h.length) {
+      const nowHour = new Date().getHours();
+      const today = new Date().toISOString().slice(0, 10);
+      let hourlyHtml = '';
+      let count = 0;
+      for (let i = 0; i < h.length && count < 24; i++) {
+        const t = h[i];
+        const dt = new Date(t.time);
+        const hHour = dt.getHours();
+        const hDate = dt.toISOString().slice(0, 10);
+        // Show from current hour forward
+        if (hDate === today && hHour < nowHour) continue;
+        const isCurrent = hDate === today && hHour === nowHour;
+        const hNight = isNightTime(hHour);
+        const hInfo = getWeatherCodeInfo(t.weather_code, hNight);
+        const timeStr = hHour === 0 ? '12 AM' : hHour === 12 ? '12 PM' : hHour > 12 ? (hHour - 12) + ' PM' : hHour + ' AM';
+        hourlyHtml += `<div class="hourly-item ${isCurrent ? 'current' : ''}">
+          <span class="hourly-time">${timeStr}</span>
+          <div class="hourly-icon weather-icon">${weatherIconSVG(hInfo.icon, 28)}</div>
+          <span class="hourly-temp">${fmtTemp(t.temperature_2m)}</span>
+        </div>`;
+        count++;
+      }
+      html += `<div class="hourly-strip-wrapper">
+        <div class="hourly-strip" id="hourlyStrip">${hourlyHtml}</div>
+      </div>`;
+    }
+
+    // 7-day forecast
+    if (d.length) {
+      const dayNames = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+      let forecastHtml = '';
+      for (let i = 0; i < Math.min(d.length, 7); i++) {
+        const day = d[i];
+        const dt = new Date(day.time + 'T12:00:00');
+        const dayName = i === 0 ? 'Today' : dayNames[dt.getDay()];
+        const dayInfo = getWeatherCodeInfo(day.weather_code, false);
+        const precip = day.precipitation_probability_max || 0;
+        forecastHtml += `<div class="forecast-item">
+          <span class="forecast-day">${dayName}</span>
+          <div class="forecast-icon weather-icon">${weatherIconSVG(dayInfo.icon, 28)}</div>
+          <div class="forecast-precip">
+            <div class="precip-bar-track">
+              <div class="precip-bar-fill" style="width:${precip}%"></div>
+            </div>
+            <span class="precip-pct">${precip}%</span>
+          </div>
+          <div class="forecast-temps">
+            <span class="forecast-high">${fmtTemp(day.temperature_2m_max)}</span>
+            <span class="forecast-low">${fmtTemp(day.temperature_2m_min)}</span>
+          </div>
+        </div>`;
+      }
+      html += `<div class="forecast-section">
+        <h3 class="forecast-title">7-Day Forecast</h3>
+        <div class="forecast-list">${forecastHtml}</div>
+      </div>`;
+    }
+
+    app.innerHTML = html;
+    bindEvents();
+  }
+
+  function esc(s) {
+    const d = document.createElement('div');
+    d.textContent = s;
+    return d.innerHTML;
+  }
+
+  /* ─── Events ─── */
+  function bindEvents() {
+    // Unit toggle
+    $$('.unit-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        state.unit = btn.dataset.unit;
+        localStorage.setItem('skye-unit', state.unit);
+        render();
+      });
+    });
+
+    // Search
+    const input = $('#searchInput');
+    const clearBtn = $('#searchClear');
+    const suggestions = $('#suggestions');
+    if (!input) return;
+
+    input.addEventListener('input', () => {
+      const val = input.value.trim();
+      clearBtn.classList.toggle('visible', val.length > 0);
+      if (val.length < 2) {
+        suggestions.classList.remove('open');
+        suggestions.innerHTML = '';
+        return;
+      }
+      clearTimeout(debounceTimer);
+      debounceTimer = setTimeout(() => searchCities(val), 400);
+    });
+
+    input.addEventListener('keydown', (e) => {
+      const items = $$('.suggestion-item', suggestions);
+      if (e.key === 'ArrowDown') {
+        e.preventDefault();
+        focusIndex = Math.min(focusIndex + 1, items.length - 1);
+        updateFocus(items);
+      } else if (e.key === 'ArrowUp') {
+        e.preventDefault();
+        focusIndex = Math.max(focusIndex - 1, -1);
+        updateFocus(items);
+      } else if (e.key === 'Enter') {
+        e.preventDefault();
+        if (focusIndex >= 0 && items[focusIndex]) {
+          items[focusIndex].click();
+        } else if (items.length > 0) {
+          items[0].click();
+        }
+      } else if (e.key === 'Escape') {
+        suggestions.classList.remove('open');
+        input.blur();
+      }
+    });
+
+    clearBtn.addEventListener('click', () => {
+      input.value = '';
+      clearBtn.classList.remove('visible');
+      suggestions.classList.remove('open');
+      suggestions.innerHTML = '';
+      input.focus();
+    });
+
+    document.addEventListener('click', (e) => {
+      if (!e.target.closest('.search-wrapper')) {
+        suggestions.classList.remove('open');
+      }
+    });
+
+    // Pull to refresh
+    setupPTR();
+  }
+
+  function updateFocus(items) {
+    items.forEach((item, i) => {
+      item.classList.toggle('focused', i === focusIndex);
+    });
+    if (focusIndex >= 0 && items[focusIndex]) {
+      items[focusIndex].scrollIntoView({ block: 'nearest' });
+    }
+  }
+
+  /* ─── Geocoding search ─── */
+  async function searchCities(query) {
+    try {
+      const res = await fetch(`https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(query)}&count=5&language=en`);
+      const data = await res.json();
+      const suggestions = $('#suggestions');
+      if (!data.results || data.results.length === 0) {
+        suggestions.classList.remove('open');
+        suggestions.innerHTML = '';
+        return;
+      }
+      focusIndex = -1;
+      suggestions.innerHTML = data.results.map((r, i) => {
+        const meta = [r.admin1, r.country].filter(Boolean).join(', ');
+        return `<div class="suggestion-item" data-lat="${r.latitude}" data-lon="${r.longitude}" data-city="${esc(r.name)}" data-country="${esc(r.country || '')}">
+          <div class="suggestion-name">${esc(r.name)}</div>
+          <div class="suggestion-meta">${esc(meta)}</div>
+        </div>`;
+      }).join('');
+
+      $$('.suggestion-item', suggestions).forEach(item => {
+        item.addEventListener('click', () => {
+          state.lat = parseFloat(item.dataset.lat);
+          state.lon = parseFloat(item.dataset.lon);
+          state.city = item.dataset.city;
+          state.country = item.dataset.country;
+          suggestions.classList.remove('open');
+          fetchWeather();
+        });
+      });
+      suggestions.classList.add('open');
+    } catch (e) {
+      // Silently fail
+    }
+  }
+
+  /* ─── Pull to Refresh ─── */
+  function setupPTR() {
+    let startY = 0;
+    let pulling = false;
+    let threshold = 80;
+    const container = app;
+
+    container.addEventListener('touchstart', (e) => {
+      if (window.scrollY === 0) {
+        startY = e.touches[0].clientY;
+        pulling = true;
+      }
+    }, { passive: true });
+
+    container.addEventListener('touchmove', (e) => {
+      if (!pulling) return;
+      const diff = e.touches[0].clientY - startY;
+      if (diff > 20 && window.scrollY === 0) {
+        ptr.classList.add('visible');
+      }
+    }, { passive: true });
+
+    container.addEventListener('touchend', () => {
+      if (ptr.classList.contains('visible')) {
+        fetchWeather().then(() => {
+          ptr.classList.remove('visible');
+        });
+      }
+      pulling = false;
+    });
+  }
+
+  /* ─── Geolocation ─── */
+  function getGeolocation() {
+    return new Promise((resolve, reject) => {
+      if (!navigator.geolocation) {
+        reject(new Error('no-geolocation'));
+        return;
+      }
+      navigator.geolocation.getCurrentPosition(
+        (pos) => resolve({ lat: pos.coords.latitude, lon: pos.coords.longitude }),
+        (err) => reject(err),
+        { timeout: 8000, maximumAge: 300000 }
+      );
+    });
+  }
+
+  /* ─── Reverse geocode ─── */
+  async function reverseGeocode(lat, lon) {
+    try {
+      const res = await fetch(`https://geocoding-api.open-meteo.com/v1/search?name=${lat.toFixed(1)}&count=1&language=en&latitude=${lat}&longitude=${lon}`);
+      // Open-Meteo geocoding doesn't have reverse geocode, use a workaround
+      // We'll use the timezone to approximate or just show coordinates
+      state.city = `${lat.toFixed(2)}, ${lon.toFixed(2)}`;
+      state.country = '';
+    } catch (e) {
+      state.city = `${lat.toFixed(2)}, ${lon.toFixed(2)}`;
+      state.country = '';
+    }
+  }
+
+  /* ─── Fetch Weather ─── */
+  async function fetchWeather() {
+    if (state.lat == null || state.lon == null) return;
+
+    loading.classList.remove('hidden');
+    stateMsg.style.display = 'none';
+
+    try {
+      const url = `https://api.open-meteo.com/v1/forecast?latitude=${state.lat}&longitude=${state.lon}&current=temperature_2m,relative_humidity_2m,apparent_temperature,weather_code,wind_speed_10m&hourly=temperature_2m,weather_code&daily=weather_code,temperature_2m_max,temperature_2m_min,precipitation_probability_max&timezone=auto&forecast_days=7`;
+      const res = await fetch(url);
+      if (!res.ok) throw new Error('api-error');
+      const data = await res.json();
+
+      state.current = data.current;
+      state.hourly = data.hourly.time.map((t, i) => ({
+        time: t,
+        temperature_2m: data.hourly.temperature_2m[i],
+        weather_code: data.hourly.weather_code[i]
+      }));
+      state.daily = data.daily.time.map((t, i) => ({
+        time: t,
+        weather_code: data.daily.weather_code[i],
+        temperature_2m_max: data.daily.temperature_2m_max[i],
+        temperature_2m_min: data.daily.temperature_2m_min[i],
+        precipitation_probability_max: data.daily.precipitation_probability_max[i]
+      }));
+
+      // Determine night
+      const now = new Date();
+      state.isNight = isNightTime(now.getHours());
+
+      // Apply condition class
+      const info = getWeatherCodeInfo(state.current.weather_code, state.isNight);
+      document.body.className = 'condition-' + info.condition;
+
+      state.loading = false;
+      loading.classList.add('hidden');
+      render();
+    } catch (e) {
+      loading.classList.add('hidden');
+      showState('Weather data unavailable.');
+    }
+  }
+
+  /* ─── Show state messages ─── */
+  function showState(msg) {
+    stateMsg.textContent = msg;
+    stateMsg.style.display = 'block';
+    app.innerHTML = '';
+    app.appendChild(stateMsg);
+  }
+
+  /* ─── Init ─── */
+  async function init() {
+    if (!navigator.onLine) {
+      showState('No connection.');
+      loading.classList.add('hidden');
+      return;
+    }
+
+    try {
+      const pos = await getGeolocation();
+      state.lat = pos.lat;
+      state.lon = pos.lon;
+      // Try to get city name from coordinates
+      await reverseGeocode(pos.lat, pos.lon);
+      await fetchWeather();
+    } catch (e) {
+      loading.classList.add('hidden');
+      // Geolocation denied or failed - show search
+      showState('Enter a city to get started.');
+      // Still render search
+      app.innerHTML = `<div class="search-panel">
+        <div class="search-wrapper">
+          <div class="search-icon">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+              <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
+            </svg>
+          </div>
+          <input type="text" class="search-input" id="searchInput" placeholder="Search city..." autocomplete="off" />
+          <button class="search-clear" id="searchClear" aria-label="Clear search">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+              <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+            </svg>
+          </button>
+          <div class="search-suggestions" id="suggestions"></div>
+        </div>
+      </div>`;
+      stateMsg.style.display = 'block';
+      app.appendChild(stateMsg);
+      bindEvents();
+    }
+
+    // Listen for online/offline
+    window.addEventListener('online', () => {
+      if (state.loading) fetchWeather();
+    });
+    window.addEventListener('offline', () => {
+      showState('No connection.');
+    });
+  }
+
+  init();
+})();
+</script>
+</body>
+</html>
