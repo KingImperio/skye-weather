@@ -584,9 +584,9 @@ body::before {
   <div class="ptr-spinner"></div>
 </div>
 
-<div class="app-container" id="app">
+<main class="app-container" id="app">
   <div class="state-message" id="stateMessage" style="display:none;"></div>
-</div>
+</main>
 
 <script>
 (function() {
@@ -777,7 +777,7 @@ body::before {
     let html = '';
 
     // Search panel (always shown for search access)
-    html += `<div class="search-panel">
+    html += `<section class="search-panel" aria-label="City search">
       <div class="search-wrapper">
         <div class="search-icon">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
@@ -792,25 +792,25 @@ body::before {
         </button>
         <div class="search-suggestions" id="suggestions"></div>
       </div>
-    </div>`;
+    </section>`;
 
     // Current conditions
-    html += `<div class="current-panel" style="position:relative;">
+    html += `<section class="current-panel" style="position:relative;" aria-label="Current weather">
       <div class="current-icon" style="position:absolute;top:20px;right:20px;">
         <div class="weather-icon">${weatherIconSVG(info.icon, 80)}</div>
       </div>
-      <div class="current-header">
+      <header class="current-header">
         <div class="current-location">
           <span class="current-city">${esc(state.city)}</span>
           <span class="current-country">${esc(state.country)}</span>
         </div>
         <div class="current-actions">
-          <div class="unit-toggle">
+          <div class="unit-toggle" role="group" aria-label="Temperature unit">
             <button class="unit-btn ${state.unit === 'C' ? 'active' : ''}" data-unit="C">C&deg;</button>
             <button class="unit-btn ${state.unit === 'F' ? 'active' : ''}" data-unit="F">F&deg;</button>
           </div>
         </div>
-      </div>
+      </header>
       <div class="current-temp">${fmtTemp(state.current.temperature_2m)}</div>
       <h2 class="current-condition">${esc(info.label)}</h2>
       <div class="current-details">
@@ -818,7 +818,7 @@ body::before {
         <span class="current-detail">Humidity ${state.current.relative_humidity_2m}%</span>
         <span class="current-detail">Wind ${Math.round(state.current.wind_speed_10m)} km/h</span>
       </div>
-    </div>`;
+    </section>`;
 
     // Hourly strip
     if (h.length) {
@@ -844,9 +844,9 @@ body::before {
         </div>`;
         count++;
       }
-      html += `<div class="hourly-strip-wrapper">
+      html += `<section class="hourly-strip-wrapper" aria-label="Hourly forecast">
         <div class="hourly-strip" id="hourlyStrip">${hourlyHtml}</div>
-      </div>`;
+      </section>`;
     }
 
     // 7-day forecast
@@ -874,10 +874,10 @@ body::before {
           </div>
         </div>`;
       }
-      html += `<div class="forecast-section">
+      html += `<section class="forecast-section" aria-label="7-day forecast">
         <h3 class="forecast-title">7-Day Forecast</h3>
-        <div class="forecast-list">${forecastHtml}</div>
-      </div>`;
+        <ol class="forecast-list">${forecastHtml}</ol>
+      </section>`;
     }
 
     app.innerHTML = html;
@@ -1138,7 +1138,7 @@ body::before {
       // Geolocation denied or failed - show search
       showState('Enter a city to get started.');
       // Still render search
-      app.innerHTML = `<div class="search-panel">
+      app.innerHTML = `<section class="search-panel" aria-label="City search">
         <div class="search-wrapper">
           <div class="search-icon">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
@@ -1153,7 +1153,7 @@ body::before {
           </button>
           <div class="search-suggestions" id="suggestions"></div>
         </div>
-      </div>`;
+      </section>`;
       stateMsg.style.display = 'block';
       app.appendChild(stateMsg);
       bindEvents();
